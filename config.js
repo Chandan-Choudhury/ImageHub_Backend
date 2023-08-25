@@ -1,0 +1,27 @@
+const DB_USER = process.env.DB_USER;
+const DB_PASSWORD = process.env.DB_PASSWORD;
+const DB_NAME = process.env.DB_NAME;
+const DB_URL = process.env.DB_URL;
+const JWT_SECRET = process.env.JWT_SECRET;
+const R2_REGION = process.env.R2_REGION;
+const R2_ENDPOINT = process.env.R2_ENDPOINT;
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+const STRIPE_PUB_KEY = process.env.STRIPE_PUB_KEY;
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+
+module.exports.DB_USER = DB_USER;
+module.exports.DB_PASSWORD = DB_PASSWORD;
+module.exports.DB_NAME = DB_NAME;
+module.exports.DB_URL = DB_URL;
+module.exports.JWT_SECRET = JWT_SECRET;
+module.exports.R2_REGION = R2_REGION;
+module.exports.R2_ENDPOINT = R2_ENDPOINT;
+module.exports.R2_ACCESS_KEY_ID = R2_ACCESS_KEY_ID;
+module.exports.R2_SECRET_ACCESS_KEY = R2_SECRET_ACCESS_KEY;
+module.exports.R2_BUCKET_NAME = R2_BUCKET_NAME;
+module.exports.R2_PUBLIC_URL = R2_PUBLIC_URL;
+module.exports.STRIPE_PUB_KEY = STRIPE_PUB_KEY;
+module.exports.STRIPE_SECRET_KEY = STRIPE_SECRET_KEY;
