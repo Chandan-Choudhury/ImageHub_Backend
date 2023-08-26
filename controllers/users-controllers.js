@@ -77,6 +77,7 @@ const signup = async (req, res, next) => {
     email: createdUser.email,
     token: token,
     name: createdUser.name,
+    message: "Sign Up Successful.",
   });
 };
 
@@ -427,8 +428,6 @@ const createSubscription = async (req, res, next) => {
         error: false,
         message: "Subscription created successfully!",
         data: {
-          clientSecret:
-            subscription.latest_invoice.payment_intent.client_secret,
           subscriptionId: subscription.id,
           subscriptionStatus: subscription.status,
           subscription: subscription,
@@ -487,14 +486,10 @@ const cancelSubscription = async (req, res, next) => {
       return next(error);
     }
 
-    // const subscription = await stripe.subscriptions.retrieve(
-    //   user.subscriptionId
-    // );
     await stripe.subscriptions.update(user.subscriptionId, {
       cancel_at_period_end: true,
     });
 
-    // user.subscriptionId = null;
     user.isSubscribed = false;
     await user.save();
 
