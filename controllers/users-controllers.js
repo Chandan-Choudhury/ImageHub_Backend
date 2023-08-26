@@ -164,6 +164,20 @@ const fetchUserDetails = async (req, res, next) => {
   }
 };
 
+const fetchUserDetailsById = async (userId) => {
+  let user;
+  try {
+    user = await User.findById(userId);
+    if (!user) {
+      const error = new HttpError("User not found in the db.", 404);
+      return next(error);
+    }
+    return user;
+  } catch (err) {
+    return null;
+  }
+};
+
 const getImageUrls = async (req, res, next) => {
   const userId = req.params.userId;
 
@@ -499,6 +513,7 @@ const cancelSubscription = async (req, res, next) => {
 exports.signup = signup;
 exports.login = login;
 exports.fetchUserDetails = fetchUserDetails;
+exports.fetchUserDetailsById = fetchUserDetailsById;
 exports.getImageUrls = getImageUrls;
 exports.uploadSingleImage = uploadSingleImage;
 exports.uploadMultipleImages = uploadMultipleImages;

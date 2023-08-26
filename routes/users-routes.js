@@ -1,19 +1,13 @@
 const express = require("express");
-const rateLimit = require("express-rate-limit");
 const { check } = require("express-validator");
 
 const usersControllers = require("../controllers/users-controllers");
 const imageUpload = require("../middlewares/image-upload");
 const imageUploadMultiple = require("../middlewares/image-upload-multiple");
 const checkAuth = require("../middlewares/check-auth");
+const userRateLimiter = require("../middlewares/userRateLimit");
 
 const router = express.Router();
-
-const uploadRateLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 1, // 1 request per windowMs
-  message: "Too many requests from this IP, please try again later.",
-});
 
 router.post(
   "/signup",
@@ -44,7 +38,7 @@ router.get("/fetch-customer/:userId", usersControllers.fetchCustomer);
 
 router.post(
   "/image-upload/:id",
-  // uploadRateLimiter,
+  userRateLimiter,
   imageUpload.single("UploadFiles"),
   usersControllers.uploadSingleImage
 );
