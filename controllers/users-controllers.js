@@ -7,13 +7,24 @@ const ImageLibrary = require("../models/imageLibrary");
 const config = require("../config");
 const stripe = require("stripe")(config.STRIPE_SECRET_KEY);
 const moment = require("moment");
+const axios = require("axios");
+
+const recaptchaSecret = config.RECAPTCHA_SECRET;
 
 const signup = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return next(new HttpError("Please cross check your inputs...", 422));
   }
-  const { name, email, password } = req.body;
+  const { name, email, password, recaptchaValue } = req.body;
+
+  const recaptchaResponse = await axios.post(
+    `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${recaptchaValue}`
+  );
+  if (!recaptchaResponse.data.success) {
+    const error = new HttpError("Invalid recaptcha.", 401);
+    return next(error);
+  }
 
   let existingUser;
   try {
@@ -70,9 +81,16 @@ const signup = async (req, res, next) => {
 };
 
 const login = async (req, res, next) => {
-  const { email, password } = req.body;
+  const { email, password, recaptchaValue } = req.body;
   let existingUser;
   try {
+    const recaptchaResponse = await axios.post(
+      `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${recaptchaValue}`
+    );
+    if (!recaptchaResponse.data.success) {
+      const error = new HttpError("Invalid recaptcha.", 401);
+      return next(error);
+    }
     existingUser = await User.findOne({ email: email });
   } catch (err) {
     const error = new HttpError("Login failed, try again later...", 500);
