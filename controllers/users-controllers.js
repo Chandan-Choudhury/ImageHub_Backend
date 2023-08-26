@@ -427,7 +427,7 @@ const createSubscription = async (req, res, next) => {
   }
 };
 
-const renewSubscription = async (req, res, next) => {
+const resumeSubscription = async (req, res, next) => {
   const userId = req.params.userId;
   try {
     const user = await User.findById(userId);
@@ -505,5 +505,5 @@ exports.uploadMultipleImages = uploadMultipleImages;
 exports.fetchCustomer = fetchCustomer;
 exports.fetchSubscription = fetchSubscription;
 exports.createSubscription = createSubscription;
-exports.renewSubscription = renewSubscription;
+exports.resumeSubscription = resumeSubscription;
 exports.cancelSubscription = cancelSubscription;
