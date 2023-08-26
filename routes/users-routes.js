@@ -41,7 +41,7 @@ router.get("/fetch-customer/:userId", usersControllers.fetchCustomer);
 
 router.post(
   "/image-upload/:id",
-  uploadRateLimiter,
+  // uploadRateLimiter,
   imageUpload.single("UploadFiles"),
   usersControllers.uploadSingleImage
 );
