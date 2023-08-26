@@ -35,7 +35,10 @@ router.get("/images/:userId", usersControllers.getImageUrls);
 
 router.get("/fetch-subscription/:userId", usersControllers.fetchSubscription);
 
-router.post("/renew-subscription/:userId", usersControllers.renewSubscription);
+router.post(
+  "/resume-subscription/:userId",
+  usersControllers.resumeSubscription
+);
 
 router.get("/fetch-customer/:userId", usersControllers.fetchCustomer);
 
