@@ -11,143 +11,119 @@ const axios = require("axios");
 
 const recaptchaSecret = config.RECAPTCHA_SECRET;
 
-const signup = async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return next(new HttpError("Please cross check your inputs...", 422));
-  }
-  const { name, email, password, recaptchaValue } = req.body;
-
-  const recaptchaResponse = await axios.post(
-    `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${recaptchaValue}`
-  );
-  if (!recaptchaResponse.data.success) {
-    const error = new HttpError("Invalid recaptcha.", 401);
-    return next(error);
-  }
-
-  let existingUser;
-  try {
-    existingUser = await User.findOne({ email: email });
-  } catch (err) {
-    const error = new HttpError("Signing Up failed, try again later...", 500);
-    return next(error);
-  }
-
-  if (existingUser) {
-    const error = new HttpError("User already exist...", 422);
-    return next(error);
-  }
-
-  let hashedPassword;
-  try {
-    hashedPassword = await bcrypt.hash(password, 12);
-  } catch (err) {
-    const error = new HttpError("Couldn't create user try again.", 500);
-    return next(error);
-  }
-
-  const createdUser = new User({
-    name,
-    email,
-    password: hashedPassword,
-  });
-
-  try {
-    await createdUser.save();
-  } catch (err) {
-    const error = new HttpError("Sign up failed...", 500);
-    return next(error);
-  }
-
-  let token;
-  try {
-    token = jwt.sign(
-      { userId: createdUser.id, email: createdUser.email },
-      config.JWT_SECRET,
-      { expiresIn: "1h" }
-    );
-  } catch (err) {
-    const error = new HttpError("Signing Up failed, try again later...", 500);
-    return next(error);
-  }
-
-  res.status(201).json({
-    userId: createdUser.id,
-    email: createdUser.email,
-    token: token,
-    name: createdUser.name,
-    message: "Sign Up Successful.",
-  });
+const handleError = (err, statusCode = 500, next) => {
+  const error = new HttpError(`${err.message}`, statusCode);
+  return next(error);
 };
 
-const login = async (req, res, next) => {
-  const { email, password, recaptchaValue } = req.body;
-  let existingUser;
+const validateRecaptcha = async (recaptchaValue) => {
   try {
     const recaptchaResponse = await axios.post(
       `https://www.google.com/recaptcha/api/siteverify?secret=${recaptchaSecret}&response=${recaptchaValue}`
     );
-    if (!recaptchaResponse.data.success) {
-      const error = new HttpError("Invalid recaptcha.", 401);
-      return next(error);
+    return recaptchaResponse.data.success;
+  } catch (err) {
+    throw new HttpError("Recaptcha validation failed.", 401);
+  }
+};
+
+const signup = async (req, res, next) => {
+  const { name, email, password, recaptchaValue } = req.body;
+
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      throw new HttpError("Please cross-check your inputs...", 422);
     }
-    existingUser = await User.findOne({ email: email });
-  } catch (err) {
-    const error = new HttpError("Login failed, try again later...", 500);
-    return next(error);
-  }
 
-  if (!existingUser) {
-    const error = new HttpError(
-      "Invalid credentials, email does not exist in the db.",
-      401
+    const isRecaptchaValid = await validateRecaptcha(recaptchaValue);
+    if (!isRecaptchaValid) {
+      throw new HttpError("Invalid recaptcha.", 401);
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      throw new HttpError("User already exists...", 422);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const createdUser = new User({
+      name,
+      email,
+      password: hashedPassword,
+    });
+
+    await createdUser.save();
+
+    const token = jwt.sign(
+      { userId: createdUser.id, email: createdUser.email },
+      config.JWT_SECRET,
+      { expiresIn: "1h" }
     );
-    return next(error);
-  }
 
-  let isValidPassword = false;
+    res.status(201).json({
+      userId: createdUser.id,
+      email: createdUser.email,
+      token: token,
+      name: createdUser.name,
+      message: "Sign Up Successful.",
+    });
+  } catch (error) {
+    handleError(error, 500, next);
+  }
+};
+
+const login = async (req, res, next) => {
+  const { email, password, recaptchaValue } = req.body;
+
   try {
-    isValidPassword = await bcrypt.compare(password, existingUser.password);
-  } catch (err) {
-    const error = new HttpError("Couldn't log you in.", 500);
-    return next(error);
-  }
+    const isRecaptchaValid = await validateRecaptcha(recaptchaValue);
+    if (!isRecaptchaValid) {
+      throw new HttpError("Invalid recaptcha.", 401);
+    }
 
-  if (!isValidPassword) {
-    const error = new HttpError("Invalid credentials, password mismatch.", 401);
-    return next(error);
-  }
+    const existingUser = await User.findOne({ email });
+    if (!existingUser) {
+      throw new HttpError(
+        "Invalid credentials, email does not exist in the db.",
+        401
+      );
+    }
 
-  let token;
-  try {
-    token = jwt.sign(
+    const isValidPassword = await bcrypt.compare(
+      password,
+      existingUser.password
+    );
+    if (!isValidPassword) {
+      throw new HttpError("Invalid credentials, password mismatch.", 401);
+    }
+
+    const token = jwt.sign(
       { userId: existingUser.id, email: existingUser.email },
       config.JWT_SECRET,
       { expiresIn: "1h" }
     );
-  } catch (err) {
-    const error = new HttpError("Signing in failed, try again later...", 500);
-    return next(error);
-  }
 
-  res.json({
-    userId: existingUser.id,
-    email: existingUser.email,
-    name: existingUser.name,
-    token: token,
-    message: "Login Successful.",
-  });
+    res.json({
+      userId: existingUser.id,
+      email: existingUser.email,
+      name: existingUser.name,
+      token: token,
+      message: "Login Successful.",
+    });
+  } catch (error) {
+    handleError(error, 500, next);
+  }
 };
 
 const fetchUserDetails = async (req, res, next) => {
   const userId = req.params.userId;
-  let user;
+
   try {
-    user = await User.findById(userId);
+    const user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
+      throw new HttpError("User not found in the db.", 404);
     }
     res.status(200).json({
       message: "User details fetched successfully!",
@@ -159,19 +135,16 @@ const fetchUserDetails = async (req, res, next) => {
       isSubscribed: user.isSubscribed,
       expiryOfSubscription: user.expiryOfSubscription,
     });
-  } catch (err) {
-    const error = new HttpError("Fetching user details failed.", 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
-const fetchUserDetailsById = async (userId) => {
-  let user;
+const fetchUserDetailsById = async (userId, next) => {
   try {
-    user = await User.findById(userId);
+    const user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
+      throw new HttpError("User not found in the db.", 404);
     }
     return user;
   } catch (err) {
@@ -179,29 +152,25 @@ const fetchUserDetailsById = async (userId) => {
   }
 };
 
+// ... Previous code ...
+
 const getImageUrls = async (req, res, next) => {
   const userId = req.params.userId;
 
-  let imageLibrary;
   try {
-    imageLibrary = await ImageLibrary.findById(userId);
+    const imageLibrary = await ImageLibrary.findById(userId);
     if (!imageLibrary) {
-      const error = new HttpError(
+      throw new HttpError(
         "Image Library not found in the db, try again later...",
         404
       );
-      return next(error);
     }
 
     const imageUrls = imageLibrary.imageUrls;
     res.set("Cache-Control", "no-cache");
     res.status(200).json({ imageUrls });
-  } catch (err) {
-    const error = new HttpError(
-      "Fetching imageUrls failed, try again later...",
-      500
-    );
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
@@ -209,14 +178,11 @@ const uploadSingleImage = async (req, res, next) => {
   const userId = req.params.id;
   const publicUrl = req.file.location.split("/");
   const lastSegment = publicUrl.pop();
+
   try {
     let user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError(
-        "User not found in the db, try again later...",
-        404
-      );
-      return next(error);
+      throw new HttpError("User not found in the db, try again later...", 404);
     }
 
     let imageLibrary = await ImageLibrary.findById(userId);
@@ -239,9 +205,8 @@ const uploadSingleImage = async (req, res, next) => {
       type: req.file.mimetype,
       size: req.file.size,
     });
-  } catch (err) {
-    const error = new HttpError("Image upload failed, try again later...", 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
@@ -251,36 +216,28 @@ const uploadMultipleImages = async (req, res, next) => {
     const lastSegment = file.location.split("/").pop();
     return config.R2_PUBLIC_URL + userId + "/" + lastSegment;
   });
+
   try {
     let user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError(
-        "User not found in the db, try again later...",
-        404
-      );
-      return next(error);
+      throw new HttpError("User not found in the db, try again later...", 404);
     }
     if (!user.expiryOfSubscription) {
-      const error = new HttpError("User is not subscribed for Pro plan.", 404);
-      return next(error);
+      throw new HttpError("User is not subscribed for Pro plan.", 404);
     } else {
       const expiryDate = moment(user.expireOfSubscription, "YYYYMMDDHHmmssSSS");
       const currentDate = moment();
       if (currentDate.isAfter(expiryDate)) {
-        const error = new HttpError(
-          "User subscription expired, please renew your subscription. lala",
+        throw new HttpError(
+          "User subscription expired, please renew your subscription.",
           404
         );
-        return next(error);
       }
     }
-  } catch (err) {
-    const error = new HttpError(
-      "Something went wrong, try again later...",
-      500
-    );
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
+
   let imageLibrary = await ImageLibrary.findById(userId);
   if (!imageLibrary) {
     imageLibrary = new ImageLibrary({
@@ -293,13 +250,9 @@ const uploadMultipleImages = async (req, res, next) => {
 
   try {
     await imageLibrary.save();
-  } catch (err) {
-    console.log("error : ", err);
-    const error = new HttpError(
-      " in saving imageLibrary User image upload failed, try again later...",
-      500
-    );
-    return next(error);
+  } catch (error) {
+    console.log("error : ", error);
+    handleError(error, 500, next);
   }
 
   const responseFiles = req.files.map((file) => ({
@@ -315,13 +268,35 @@ const uploadMultipleImages = async (req, res, next) => {
   });
 };
 
-const fetchSubscription = async (req, res, next) => {
+const fetchCustomer = async (req, res, next) => {
   const userId = req.params.userId;
+
   try {
     const user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
+      throw new HttpError("User not found in the db.", 404);
+    }
+    const customer = await stripe.customers.retrieve(user.customerId);
+
+    res
+      .json({
+        error: false,
+        message: "Customer fetched successfully!",
+        customer: customer,
+      })
+      .status(200);
+  } catch (error) {
+    handleError(error, 500, next);
+  }
+};
+
+const fetchSubscription = async (req, res, next) => {
+  const userId = req.params.userId;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      throw new HttpError("User not found in the db.", 404);
     }
     const subscription = await stripe.subscriptions.retrieve(
       user.subscriptionId
@@ -334,32 +309,8 @@ const fetchSubscription = async (req, res, next) => {
         subscription: subscription,
       })
       .status(200);
-  } catch (err) {
-    const error = new HttpError(`${err.message}`, 500);
-    return next(error);
-  }
-};
-
-const fetchCustomer = async (req, res, next) => {
-  const userId = req.params.userId;
-  try {
-    const user = await User.findById(userId);
-    if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
-    }
-    const customer = await stripe.customers.retrieve(user.customerId);
-
-    res
-      .json({
-        error: false,
-        message: "Customer fetched successfully!",
-        customer: customer,
-      })
-      .status(200);
-  } catch (err) {
-    const error = new HttpError(`${err.message}`, 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
@@ -367,8 +318,10 @@ const createSubscription = async (req, res, next) => {
   try {
     const { name, email, address, paymentMethod, priceId } = req.body;
     const existingUser = await User.findOne({ email: email });
+
     let customer;
     let subscription;
+
     try {
       customer = await stripe.customers.create({
         name: name,
@@ -389,10 +342,10 @@ const createSubscription = async (req, res, next) => {
           default_payment_method: paymentMethod,
         },
       });
-    } catch (err) {
-      const error = new HttpError(`${err.message}`, 500);
-      return next(error);
+    } catch (error) {
+      handleError(error, 500, next);
     }
+
     try {
       subscription = await stripe.subscriptions.create({
         customer: customer.id,
@@ -408,21 +361,9 @@ const createSubscription = async (req, res, next) => {
         },
         expand: ["latest_invoice.payment_intent"],
       });
-    } catch (err) {
-      const error = new HttpError(`${err.message}`, 500);
-      return next(error);
+    } catch (error) {
+      handleError(error, 500, next);
     }
-
-    const expirationDate = new Date();
-    expirationDate.setDate(expirationDate.getDate() + 30);
-    const expirationTimestamp = expirationDate.toISOString().replace(/\D/g, "");
-
-    existingUser.customerId = customer.id;
-    existingUser.priceId = priceId;
-    existingUser.subscriptionId = subscription.id;
-    existingUser.isSubscribed = true;
-    existingUser.expiryOfSubscription = expirationTimestamp;
-    await existingUser.save();
     res
       .json({
         error: false,
@@ -434,19 +375,45 @@ const createSubscription = async (req, res, next) => {
         },
       })
       .status(201);
-  } catch (err) {
-    const error = new HttpError(`${err.message}`, 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
+  }
+};
+
+const updateSubscription = async (req, res, next) => {
+  const userId = req.params.userId;
+  const { priceId, customerId, subscriptionId } = req.body;
+
+  try {
+    const existingUser = await User.findById(userId);
+    const expirationDate = moment().add(30, "days");
+    const expirationTimestamp = expirationDate.format("YYYYMMDDHHmmssSSS");
+
+    existingUser.customerId = customerId;
+    existingUser.priceId = priceId;
+    existingUser.subscriptionId = subscriptionId;
+    existingUser.isSubscribed = true;
+    existingUser.expiryOfSubscription = expirationTimestamp;
+    await existingUser.save();
+    res
+      .json({
+        error: false,
+        message: "Subscription updated successfully!",
+        icon: "success",
+      })
+      .status(201);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
 const resumeSubscription = async (req, res, next) => {
   const userId = req.params.userId;
+
   try {
     const user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
+      throw new HttpError("User not found in the db.", 404);
     }
     const subscription = await stripe.subscriptions.update(
       user.subscriptionId,
@@ -456,34 +423,31 @@ const resumeSubscription = async (req, res, next) => {
     );
 
     user.isSubscribed = true;
-
     await user.save();
 
     res.status(200).json({
       error: false,
-      message: "Subscription updated successfully!",
+      message: "Subscription resumed successfully!",
       data: {
         subscriptionId: subscription.id,
         subscriptionStatus: subscription.status,
       },
     });
-  } catch (err) {
-    const error = new HttpError(`${err.message}`, 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
 const cancelSubscription = async (req, res, next) => {
   const userId = req.params.userId;
+
   try {
     const user = await User.findById(userId);
     if (!user) {
-      const error = new HttpError("User not found in the db.", 404);
-      return next(error);
+      throw new HttpError("User not found in the db.", 404);
     }
     if (!user.subscriptionId) {
-      const error = new HttpError("User has no subscription.", 404);
-      return next(error);
+      throw new HttpError("User has no subscription.", 404);
     }
 
     await stripe.subscriptions.update(user.subscriptionId, {
@@ -499,9 +463,8 @@ const cancelSubscription = async (req, res, next) => {
         message: "Subscription cancelled successfully!",
       })
       .status(200);
-  } catch (err) {
-    const error = new HttpError(`${err.message}`, 500);
-    return next(error);
+  } catch (error) {
+    handleError(error, 500, next);
   }
 };
 
@@ -515,5 +478,6 @@ exports.uploadMultipleImages = uploadMultipleImages;
 exports.fetchCustomer = fetchCustomer;
 exports.fetchSubscription = fetchSubscription;
 exports.createSubscription = createSubscription;
+exports.updateSubscription = updateSubscription;
 exports.resumeSubscription = resumeSubscription;
 exports.cancelSubscription = cancelSubscription;

@@ -8,24 +8,27 @@ const userRateLimiter = rateLimit({
   message: "Too many requests, please try again after one hour.",
   handler: async (req, res) => {
     const userId = req.params.id;
-    const user = await usersControllers.fetchUserDetailsById(userId);
 
-    if (!user.expiryOfSubscription) {
-      res.status(429).json({
-        message: "Too many requests, please try again after one hour.",
-      });
-      return;
-    }
-    const expiryDate = moment(user.expireOfSubscription, "YYYYMMDDHHmmssSSS");
-    const currentDate = moment();
-    if (currentDate.isAfter(expiryDate)) {
-      res.status(429).json({
-        message: "Too many requests, please try again after one hour.",
-      });
-      return;
-    }
+    try {
+      const user = await usersControllers.fetchUserDetailsById(userId);
+      const currentDate = moment();
 
-    res.status(200).json({ message: "Request allowed" });
+      if (
+        !user.expiryOfSubscription ||
+        currentDate.isAfter(
+          moment(user.expireOfSubscription, "YYYYMMDDHHmmssSSS")
+        )
+      ) {
+        res.status(429).json({
+          message: "Too many requests, please try again after one hour.",
+        });
+      } else {
+        res.status(200).json({ message: "Request allowed" });
+      }
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+      res.status(500).json({ message: "An error occurred" });
+    }
   },
 });
 
