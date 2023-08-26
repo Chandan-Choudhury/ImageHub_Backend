@@ -52,6 +52,11 @@ router.post(
 router.post("/create-subscription", usersControllers.createSubscription);
 
 router.post(
+  "/update-subscription/:userId",
+  usersControllers.updateSubscription
+);
+
+router.post(
   "/cancel-subscription/:userId",
   usersControllers.cancelSubscription
 );
