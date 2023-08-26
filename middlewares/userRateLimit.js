@@ -5,15 +5,14 @@ const moment = require("moment");
 const userRateLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   max: 1,
-  message: "Too many requests from this User, please try again after one hour.",
+  message: "Too many requests, please try again after one hour.",
   handler: async (req, res) => {
     const userId = req.params.id;
     const user = await usersControllers.fetchUserDetailsById(userId);
 
     if (!user.expiryOfSubscription) {
       res.status(429).json({
-        message:
-          "Too many requests from this User, please try again after one hour.",
+        message: "Too many requests, please try again after one hour.",
       });
       return;
     }
@@ -21,8 +20,7 @@ const userRateLimiter = rateLimit({
     const currentDate = moment();
     if (currentDate.isAfter(expiryDate)) {
       res.status(429).json({
-        message:
-          "Too many requests from this User, please try again after one hour.",
+        message: "Too many requests, please try again after one hour.",
       });
       return;
     }
