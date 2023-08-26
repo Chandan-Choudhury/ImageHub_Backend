@@ -186,24 +186,6 @@ const uploadSingleImage = async (req, res, next) => {
       return next(error);
     }
 
-    if (user.expiryOfSubscription) {
-      const expiryDate = moment(user.expireOfSubscription, "YYYYMMDDHHmmssSSS");
-      const currentDate = moment();
-      if (currentDate.isAfter(expiryDate)) {
-        const error = new HttpError(
-          "User subscription expired, please renew your subscription.",
-          404
-        );
-        return next(error);
-      }
-    } else {
-      const error = new HttpError(
-        "User subscription expired, please renew your subscription.",
-        404
-      );
-      return next(error);
-    }
-
     let imageLibrary = await ImageLibrary.findById(userId);
     if (!imageLibrary) {
       imageLibrary = new ImageLibrary({
@@ -244,6 +226,20 @@ const uploadMultipleImages = async (req, res, next) => {
         404
       );
       return next(error);
+    }
+    if (!user.expiryOfSubscription) {
+      const error = new HttpError("User is not subscribed for Pro plan.", 404);
+      return next(error);
+    } else {
+      const expiryDate = moment(user.expireOfSubscription, "YYYYMMDDHHmmssSSS");
+      const currentDate = moment();
+      if (currentDate.isAfter(expiryDate)) {
+        const error = new HttpError(
+          "User subscription expired, please renew your subscription. lala",
+          404
+        );
+        return next(error);
+      }
     }
   } catch (err) {
     const error = new HttpError(
